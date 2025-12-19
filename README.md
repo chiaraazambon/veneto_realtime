@@ -39,11 +39,15 @@ python scripts/fix_ingestion_smet.py
 # Fix header da APOLLO per subset di stazioni
 python scripts/fix_header.py
 
-# 5) Preprocess dati meteorologici
+# Preprocess dati meteorologici
 cd meteo
 mf process PM0_Local.yml 
 mf process PM1_integr.yml 
 mf process PM2_snow.yml 
+
+# Fix header 347.smet
+## Eseguire a mano la modifica dell'header per la stazione 347.smet
+## Prendere come riferimento la stazione 37.smet
 
 # Append APOLLO + INGESTION
 for f in smet_APOLLO/*.smet; do
