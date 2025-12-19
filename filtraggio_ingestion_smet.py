@@ -1,74 +1,101 @@
+#!/usr/bin/env python3
 from pathlib import Path
+import argparse
 import shutil
-
-# Cartella in cui si trova questo script
-ROOT = Path(__file__).resolve().parent
-
-# Cartelle di input
-DIR_REF = ROOT / "./smet/APOLLO/smet_12_05"  # contiene i 111 file "di riferimento"
-DIR_ALL = (
-    ROOT / "./smet/APOLLO/arpav_2025-12-08_2025-12-18"
-)  # contiene i 222 file totali
-
-# Cartella di output
-OUT_DIR = ROOT / "./smet/APOLLO/arpav_filtrati_per_station_name-2025-12-18"
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-print(f"Cartella riferimento: {DIR_REF}")
-print(f"Cartella completa:    {DIR_ALL}")
-print(f"Output:               {OUT_DIR}")
+import sys
 
 
 def extract_station_name(fp: Path) -> str | None:
-    """Legge l'header di un file SMET e restituisce lo station_name (stringa)."""
-    with fp.open() as f:
+    with fp.open(encoding="utf-8", errors="ignore") as f:
         for line in f:
             line_stripped = line.strip()
             if line_stripped.startswith("[DATA]"):
                 break
             if line_stripped.startswith("station_name"):
-                # parte dopo '=' senza spazi
                 return line_stripped.split("=", 1)[1].strip()
     return None
 
 
-# Costruisco l'insieme degli station_name presenti nella cartella di riferimento
-station_names_ref: set[str] = set()
+def filter_by_station_name(dir_ref: Path, dir_all: Path, out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-ref_files = list(DIR_REF.glob("*.smet"))
-print(f"Trovati {len(ref_files)} file in {DIR_REF}")
+    print(f"Cartella riferimento: {dir_ref}")
+    print(f"Cartella completa:    {dir_all}")
+    print(f"Output:               {out_dir}")
+    station_names_ref: set[str] = set()
 
-for fp in ref_files:
-    name = extract_station_name(fp)
-    if name is None:
-        print(f"[WARN] Nessuno station_name trovato in {fp.name}")
-        continue
-    station_names_ref.add(name)
+    ref_files = list(dir_ref.glob("*.smet"))
+    print(f"Trovati {len(ref_files)} file in {dir_ref}")
 
-print(
-    f"Trovati {len(station_names_ref)} station_name unici nella cartella di riferimento."
-)
-print("Esempi:", list(station_names_ref)[:5])
+    for fp in ref_files:
+        name = extract_station_name(fp)
+        if name is None:
+            print(f"[WARN] Nessuno station_name trovato in {fp.name}")
+            continue
+        station_names_ref.add(name)
 
-# Scorro i file della cartella "grande" e copio solo quelli con station_name presente
-all_files = list(DIR_ALL.glob("*.smet"))
-print(f"Trovati {len(all_files)} file in {DIR_ALL}")
+    print(
+        f"Trovati {len(station_names_ref)} station_name unici nella cartella di riferimento."
+    )
+    print("Esempi:", list(station_names_ref)[:5])
 
-copied = 0
+    all_files = list(dir_all.glob("*.smet"))
+    print(f"Trovati {len(all_files)} file in {dir_all}")
 
-for fp in all_files:
-    name = extract_station_name(fp)
-    if name is None:
-        print(f"[SKIP] {fp.name}: nessuno station_name nell'header.")
-        continue
+    copied = 0
 
-    if name in station_names_ref:
-        dest = OUT_DIR / fp.name
-        shutil.copy2(fp, dest)
-        copied += 1
-        print(f"[COPY] {fp.name} (station_name='{name}') -> {dest.name}")
-    else:
-        # se dà fastidio troppa stampa, puoi commentare la riga sotto
-        print(f"[NO MATCH] {fp.name} (station_name='{name}')")
+    for fp in all_files:
+        name = extract_station_name(fp)
+        if name is None:
+            print(f"[SKIP] {fp.name}: nessuno station_name nell'header.")
+            continue
 
-print(f"\n✅ Copiati {copied} file in {OUT_DIR}")
+        if name in station_names_ref:
+            dest = out_dir / fp.name
+            shutil.copy2(fp, dest)
+            copied += 1
+            print(f"-->{fp.name} (station_name='{name}') -> {dest.name}")
+        else:
+            print(f"{fp.name} (station_name='{name}')")
+
+    print(f"\n✅ Copiati {copied} file in {out_dir}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dir-ref",
+        type=Path,
+        required=True,
+        help="Cartella con i file SMET di riferimento (es. 111 file).",
+    )
+    parser.add_argument(
+        "--dir-all",
+        type=Path,
+        required=True,
+        help="Cartella con tutti i file SMET da filtrare (es. 222 file).",
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        required=True,
+        help="Cartella di output dove copiare i file filtrati.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    if not args.dir_ref.exists():
+        print(f"Directory riferimento non trovata: {args.dir_ref}", file=sys.stderr)
+        sys.exit(1)
+    if not args.dir_all.exists():
+        print(f"Directory completa non trovata: {args.dir_all}", file=sys.stderr)
+        sys.exit(1)
+
+    filter_by_station_name(args.dir_ref, args.dir_all, args.out_dir)
+
+
+if __name__ == "__main__":
+    main()
