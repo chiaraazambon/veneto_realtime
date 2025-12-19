@@ -1,0 +1,99 @@
+input:
+    file:
+        in_dir: 0_outDB
+        type: point
+        property:
+            format: smet # oms
+    db_mask:
+        table: weather.spatial_mask
+        match:
+            column: spatial_mask_name
+            values: ['venfvg', 'brenta']
+        buffer:
+            distance: 0.008
+
+process:
+  steps:
+    - name: 1_interp2D
+      type: interpolator2D
+      tasks:
+        - var: PSUM
+          type: IDW
+          args:
+            alpha: 4
+            scale: 3000
+            local: 100000
+          predictors:
+            - type: lapse_frac
+              args:
+                frac: 0.0005
+                min_thr: 500
+                max_thr: 2500
+        - var: TA
+          type: IDW
+          args:
+            alpha: 3
+            scale: 2000
+            local: 100000
+          predictors:
+            - type: lapse_rate
+              args:
+                gradient: -0.0065
+        - var: RH
+          type: IDW
+          args:
+            alpha: 3
+            scale: 2000
+            local: 100000
+          predictors:
+            - type: listonRH
+            - type: lapse_rate
+              args:
+                gradient: -0.0052
+        - var: VW
+          type: IDW
+          args:
+            lapse: frac
+            alpha: 2
+            scale: 3000
+            local: 100000
+          predictors:
+            - type: lapse_frac
+              args:
+                frac: 0.00125
+        - var: TAU_CLD
+          type: IDW
+          args:
+            alpha: 3
+            scale: 3000
+            local: 100000
+        - var: P
+          type: IDW
+          args:
+            alpha: 3
+            scale: 3000
+            local: 100000
+          predictors:
+            - type: normalized_pressure
+
+    - name: 2_gen_phase
+      type: generator
+      tasks:
+        - var: PSUM_PH
+          type: prec_phase
+          requires:
+            - TA
+          args:
+            thr_min: 273.15
+            thr_max: 275.15
+
+
+output:
+    out_dir: 1_outINT
+    strategy: delete # overwrite # delete # append
+    clip_on_mask: True
+    buffer: 0.018
+    # prefix: test
+    type: point
+    property:
+        format: smet # oms

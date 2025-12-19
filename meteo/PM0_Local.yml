@@ -1,0 +1,153 @@
+input:
+    file:
+        in_dir: smet_12_19_rinominati
+        type: point
+        property:
+            format: smet # oms
+
+process:
+  steps:
+    - name: 1_prioritize
+      type: priority_to
+      tasks:
+        - var: HS
+          type: hourly
+          dist_threshold: 400
+          rules:
+            - type: merge_to_min_id
+        - var: [HS24, HS]
+          type: mix
+          hs24xhs: 8
+          dist_threshold: 400
+          thr_hs_min: 0.05  # 5cm
+    
+    - name: 2_filter
+      type: filter
+      values_perc: 0.02
+      tasks:
+        - var: TA
+          type: min_max
+          args:
+            thr_min: 240
+            thr_max: 325
+        - var: PSUM
+          type: min_max
+          args:
+            thr_min: 0
+            thr_max: 60
+        - var: PSUM
+          type: unheated
+          args:
+            wdw: 96
+            corr_thr: 0.01
+        - var: RH
+          type: min_max
+          args:
+            thr_min: 0
+            thr_max: 1.2
+        - var: RH
+          type: min_max
+          args:
+            thr_min: 0.3
+            thr_max: 1.0
+            soft: True
+        - var: TA
+          type: quantile_envelope
+          args:
+            mlt: 0.05
+            gg: 25
+            q_sup: 0.85
+            q_inf: 0.15
+        - var: ISWR
+          type: min_max
+          args:
+            thr_min: -10
+            thr_max: 1200
+        - var: ISWR
+          type: min
+          args:
+            thr: 0
+            soft: True
+        - var: HS
+          type: min_max
+          args:
+            thr_min: -0.10
+            thr_max: 10.0
+        - var: HS
+          type: hs_envelope
+          args:
+            wdw: 60
+        - var: VW
+          type: min_max
+          args:
+            thr_min: -1
+            thr_max: 60
+        - var: VW
+          type: min_max
+          args:
+            thr_min: 0
+            thr_max: 40
+            soft: True
+        - var: P
+          type: min_max
+          args:
+            thr_min: 60000
+            thr_max: 130000
+
+    - name: 3_interpHS
+      type: interpolator1D
+      tasks:
+        - var: HS
+          type: linear
+          args:
+            limit: 12
+
+    - name: 4_gen_tau
+      type: generator
+      tasks:
+        - var: TAU_CLD
+          type: taucld
+          requires:
+            - ISWR
+          args:
+            thr_min: 0.05
+            thr_max: 1.1
+            perc_rad: 30
+        - var: P
+          type: std_press
+
+    - name: 5_filtHS
+      type: filter
+      tasks:
+        - var: HS
+          type: hs_envelope
+          args:
+            wdw: 24
+
+    - name: 6_interp1D
+      type: interpolator1D
+      tasks:
+        - var: TA
+          type: linear
+          args:
+            limit: 3
+        - var: RH
+          type: linear
+          args:
+            limit: 6
+        - var: TAU_CLD
+          type: linear
+          args:
+            limit: 6
+        - var: HS
+          type: linear
+          args:
+            limit: 6
+
+output:
+    out_dir: 0_outDB
+    strategy: delete # overwrite # delete # append
+    # clip_on_mask: True
+    type: point
+    property:
+        format: smet # oms

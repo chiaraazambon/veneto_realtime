@@ -1,0 +1,82 @@
+input:
+    file:
+        in_dir: 1_outINT
+        type: point
+        property:
+            format: smet # oms
+
+process:
+  steps:
+    - name: 0_prefilter_HS
+      type: filter
+      tasks: # !filters.yml
+        - var: HS
+          type: hs_degrass
+          args:
+            wdw: 120
+        - var: HS
+          type: min_max
+          args:
+            thr_min: 0
+            thr_max: 10.0
+            soft: True
+#         - var: HS
+#           type: hs_envelope
+#           args:
+#             wdw: 120
+
+    - name: 5_snowdepth_assimilation
+      type: hs2psum
+      config_par:
+        HS2PSUM:
+            HN_prob:
+                thr: 0.01
+                max_diff: 12
+                step: 2
+                roll: 5
+                min_period: 1
+                exp: 3
+                thr_min_psum: 0.2
+                thr_hn_min: 0.002
+                joint_prob_lim: 0.2
+                flatten_ratio: 0.01
+                max_ratio: 15
+                thres_temp_snow: 273.65  # 0.5 C
+                thres_temp_rain: 275.15  # 2.0 C
+
+    - name: 6_interp1D
+      type: interpolator1D
+      tasks:
+        - var: TA
+          type: linear
+          args:
+            limit: 6
+        - var: RH
+          type: linear
+          args:
+            limit: 8
+        - var: TAU_CLD
+          type: linear
+          args:
+            limit: 8
+        - var: PSUM
+          type: linear
+          args:
+            limit: 8
+        - var: VW
+          type: linear
+          args:
+            limit: 8
+        - var: ISWR
+          type: linear
+          args:
+            limit: 8
+
+
+output:
+    out_dir: 2_outSNOW 
+    strategy: delete  # delete # overwrite # delete # append
+    # prefix: test_
+    type: point
+    property:
+        format: smet # oms
