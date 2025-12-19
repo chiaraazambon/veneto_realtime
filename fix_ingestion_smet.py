@@ -147,7 +147,7 @@ def parse_args() -> argparse.Namespace:
         "--out-dir",
         type=Path,
         default=Path("./meteo/arpav_rinominati/"),
-        help="Directory output SMET (default: ./INGESTION/arpav_rinominati/)",
+        help="Directory output SMET (default: ./meteo/arpav_rinominati/)",
     )
 
     p.add_argument(
@@ -182,12 +182,13 @@ def main() -> None:
             epsg_out=args.epsg_out,
         )
         # step 2
-        if args.run_excel_step:
-            rename_station_id_from_excel(
-                smet_dir=args.out_dir,
-                xlsx_path=args.xlsx_path,
-            )
+        if not args.xlsx_path.exists():
+            raise FileNotFoundError(f"XLSX non trovato: {args.xlsx_path}")
 
+        rename_station_id_from_excel(
+            smet_dir=args.out_dir,
+            xlsx_path=args.xlsx_path,
+        )
         return
 
     except Exception as exc:
