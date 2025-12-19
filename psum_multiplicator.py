@@ -1,38 +1,91 @@
+#!/usr/bin/env python3
 from pathlib import Path
+import argparse
+import sys
 
-SMET_DIR = Path("./smet/APOLLO/arpav_2025-12-08_2025-12-18")
 
-for smet_path in SMET_DIR.glob("*.smet"):
-    text = smet_path.read_text(encoding="utf-8")
-    lines = text.splitlines()
+def fix_psum_multiplier(
+    smet_dir: Path,
+    target_value: str = "1",
+) -> None:
+    if not smet_dir.exists():
+        raise FileNotFoundError(f"Directory non trovata: {smet_dir}")
 
-    fields = None
-    units_multiplier_idx = None
+    smet_files = list(smet_dir.glob("*.smet"))
+    if not smet_files:
+        print(f"---> Nessun file .smet trovato in {smet_dir}")
+        return
 
-    for i, line in enumerate(lines):
-        if line.strip().startswith("fields"):
-            fields = line.split("=", 1)[1].strip().split()
-        if line.strip().startswith("units_multiplier"):
-            units_multiplier_idx = i
+    for smet_path in smet_files:
+        text = smet_path.read_text(encoding="utf-8")
+        lines = text.splitlines()
 
-    if fields is None or units_multiplier_idx is None:
-        print(f"⚠️  {smet_path.name}: fields o units_multiplier non trovati")
-        continue
+        fields = None
+        units_multiplier_idx = None
 
-    if "PSUM" not in fields:
-        print(f"! {smet_path.name}: PSUM non presente")
-        continue
+        for i, line in enumerate(lines):
+            line_strip = line.strip()
+            if line_strip.startswith("fields"):
+                fields = line.split("=", 1)[1].strip().split()
+            elif line_strip.startswith("units_multiplier"):
+                units_multiplier_idx = i
 
-    psum_idx = fields.index("PSUM")
+        if fields is None or units_multiplier_idx is None:
+            print(f"{smet_path.name}: fields o units_multiplier non trovati")
+            continue
 
-    parts = lines[units_multiplier_idx].split("=", 1)
-    multipliers = parts[1].strip().split()
+        if "PSUM" not in fields:
+            print(f"!! {smet_path.name}: PSUM non presente → skip")
+            continue
 
-    old_val = multipliers[psum_idx]
-    multipliers[psum_idx] = "1"
+        psum_idx = fields.index("PSUM")
 
-    lines[units_multiplier_idx] = parts[0] + "= " + " ".join(multipliers)
+        key, values = lines[units_multiplier_idx].split("=", 1)
+        multipliers = values.strip().split()
 
-    smet_path.write_text("\n".join(lines), encoding="utf-8")
+        old_val = multipliers[psum_idx]
 
-    print(f"✅ {smet_path.name}: PSUM multiplier {old_val} → 1")
+        if old_val == target_value:
+            print(f"✔️  {smet_path.name}: PSUM già = {target_value}")
+            continue
+
+        multipliers[psum_idx] = target_value
+        new_line = key + "= " + " ".join(multipliers)
+
+        lines[units_multiplier_idx] = new_line
+        smet_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"✅ {smet_path.name}: PSUM multiplier {old_val} → {target_value}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Fix PSUM units_multiplier in SMET files"
+    )
+    parser.add_argument(
+        "--smet-dir",
+        type=Path,
+        required=True,
+        help="Directory contenente i file .smet",
+    )
+    parser.add_argument(
+        "--value",
+        default="1",
+        help="Valore target del units_multiplier per PSUM (default: 1)",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    try:
+        fix_psum_multiplier(
+            smet_dir=args.smet_dir,
+            target_value=args.value,
+        )
+    except Exception as exc:
+        print(f"Errore: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
