@@ -133,7 +133,14 @@ def parse_args() -> argparse.Namespace:
         "--json-path",
         type=Path,
         required=True,
-        help="Path al JSON anagrafica (es. ./data/anagrafica_stazioni.jsonl)",
+        help="Path al JSON anagrafica (es. ./config/anagrafica_stazioni.jsonl)",
+    )
+
+    p.add_argument(
+        "--xlsx-path",
+        type=Path,
+        required=True,
+        help="Excel con mapping INGESTION_ID->station_id (es. ./config/rename_id.xlsx)",
     )
 
     p.add_argument(
@@ -148,13 +155,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("./meteo/arpav_rinominati/"),
         help="Directory output SMET (default: ./meteo/arpav_rinominati/)",
-    )
-
-    p.add_argument(
-        "--xlsx-path",
-        type=Path,
-        required=True,
-        help="Excel con mapping INGESTION_ID->station_id",
     )
 
     p.add_argument(
