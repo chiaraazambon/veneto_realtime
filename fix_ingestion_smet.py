@@ -146,7 +146,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("./INGESTION/arpav_rinominati/"),
+        default=Path("./meteo/arpav_rinominati/"),
         help="Directory output SMET (default: ./INGESTION/arpav_rinominati/)",
     )
 
