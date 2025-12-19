@@ -22,18 +22,18 @@ I seguenti script devono essere eseguiti **in sequenza** per il preprocessing de
 ```sh
 
 # Correzione PSUM (units_multiplier)
-python scripts/psum_multiplicator.py \
+python scripts/psum_multiplicator.py
   --smet-dir ./INGESTION/arpav_YYYY-MM-DD_YYYY-MM-DD
 
 # Filtraggio stazioni di interesse (222 → 111)
-python scripts/filtraggio_ingestion_smet.py \
-  --dir-ref ./INGESTION/smet_ref_05-12 \
-  --dir-all ./INGESTION/arpav_YYYY-MM-DD_YYYY-MM-DD \
+python scripts/filtraggio_ingestion_smet.py
+  --dir-ref ./INGESTION/smet_ref_05-12
+  --dir-all ./INGESTION/arpav_YYYY-MM-DD_YYYY-MM-DD
   --out-dir ./INGESTION/arpav_filtrati
 
 # Rinomina header + station_id (JSON + Excel)
-python scripts/fix_ingestion_smet.py \
-  --json-path ./config/anagrafica_stazioni.jsonl \
+python scripts/fix_ingestion_smet.py
+  --json-path ./config/anagrafica_stazioni.jsonl
   --xlsx-path ./config/rename_id.xlsx
 
 # Fix header da APOLLO per subset di stazioni
