@@ -2,19 +2,43 @@
 from pathlib import Path
 import re
 import shutil
+import argparse
 
-SNOW_DIR = Path("./meteo/2_outSNOW")
-APOLLO_DIR = Path("./meteo/smet_APOLLO")
-
-TARGET_IDS = {37, 218, 394, 68, 76, 237, 223, 88}
 FIELDS_TO_COPY = ["latitude", "longitude", "easting", "northing", "altitude"]
 
 RE_KV = re.compile(r"^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$")
 
 
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+
+    p.add_argument(
+        "--snow-dir",
+        type=Path,
+        default=Path("./meteo/arpav_rinominati/"),
+        help="Directory SMET da correggere (default: ./meteo/arpav_rinominati/)",
+    )
+
+    p.add_argument(
+        "--apollo-dir",
+        type=Path,
+        default=Path("./meteo/smet_APOLLO/"),
+        help="Directory SMET APOLLO di riferimento (default: ./meteo/smet_APOLLO/)",
+    )
+
+    p.add_argument(
+        "--station-ids",
+        type=int,
+        nargs="+",
+        default=[37, 218, 394, 68, 76, 237, 223, 88],
+        help="Lista station_id da correggere (default: 37 218 394 68 76 237 223 88)",
+    )
+
+    return p.parse_args()
+
+
 def parse_header(lines: list[str]) -> dict[str, str]:
-    """Parsa le righe tra [HEADER] e [DATA] in un dizionario key->value (string)."""
-    header = {}
+    header: dict[str, str] = {}
     in_header = False
     for line in lines:
         s = line.strip()
@@ -34,7 +58,7 @@ def parse_header(lines: list[str]) -> dict[str, str]:
 
 def replace_header_fields(lines: list[str], updates: dict[str, str]) -> list[str]:
     """Sostituisce (o inserisce) le chiavi in header mantenendo il resto invariato."""
-    out = []
+    out: list[str] = []
     in_header = False
     seen = set()
 
@@ -45,16 +69,15 @@ def replace_header_fields(lines: list[str], updates: dict[str, str]) -> list[str
         if s.upper() == "[HEADER]":
             in_header = True
             continue
+
         if s.upper() == "[DATA]":
-            # prima di [DATA], aggiungi eventuali campi non trovati
             if in_header:
                 missing = [k for k in updates.keys() if k not in seen]
                 if missing:
-                    # inserisci appena prima di [DATA]
-                    out.pop()  # rimuove la riga [DATA]
+                    out.pop()
                     for k in missing:
                         out.append(f"{k:<15} = {updates[k]}\n")
-                    out.append(line)  # rimetti [DATA]
+                    out.append(line)
             in_header = False
             continue
 
@@ -63,16 +86,14 @@ def replace_header_fields(lines: list[str], updates: dict[str, str]) -> list[str
             if m:
                 k = m.group(1).strip()
                 if k in updates:
-                    # sovrascrivi mantenendo stile "key = value"
                     out[-1] = f"{k:<15} = {updates[k]}\n"
                     seen.add(k)
 
     return out
 
 
-def find_apollo_file_for_station(station_id: int) -> Path | None:
-    # cerca in APOLLO un .smet che contenga "station_id = <id>"
-    for fp in APOLLO_DIR.rglob("*.smet"):
+def find_apollo_file_for_station(station_id: int, apollo_dir: Path) -> Path | None:
+    for fp in apollo_dir.rglob("*.smet"):
         txt = fp.read_text(encoding="utf-8", errors="replace")
         if re.search(
             rf"^\s*station_id\s*=\s*{station_id}\s*$", txt, flags=re.MULTILINE
@@ -81,15 +102,21 @@ def find_apollo_file_for_station(station_id: int) -> Path | None:
     return None
 
 
-def main():
-    if not SNOW_DIR.exists():
-        raise FileNotFoundError(f"Cartella non trovata: {SNOW_DIR.resolve()}")
-    if not APOLLO_DIR.exists():
-        raise FileNotFoundError(f"Cartella non trovata: {APOLLO_DIR.resolve()}")
+def main() -> None:
+    args = parse_args()
 
-    snow_files = list(SNOW_DIR.rglob("*.smet"))
+    snow_dir: Path = args.snow_dir
+    apollo_dir: Path = args.apollo_dir
+    target_ids: set[int] = set(args.station_ids)
+
+    if not snow_dir.exists():
+        raise FileNotFoundError(f"Cartella non trovata: {snow_dir.resolve()}")
+    if not apollo_dir.exists():
+        raise FileNotFoundError(f"Cartella non trovata: {apollo_dir.resolve()}")
+
+    snow_files = list(snow_dir.rglob("*.smet"))
     if not snow_files:
-        print(f"Nessun .smet trovato in {SNOW_DIR}")
+        print(f"Nessun .smet trovato in {snow_dir}")
         return
 
     updated = 0
@@ -114,10 +141,10 @@ def main():
             print(f"[SKIP] station_id non numerico ({sid_str}): {snow_fp}")
             continue
 
-        if sid not in TARGET_IDS:
+        if sid not in target_ids:
             continue
 
-        apollo_fp = find_apollo_file_for_station(sid)
+        apollo_fp = find_apollo_file_for_station(sid, apollo_dir)
         if apollo_fp is None:
             skipped += 1
             print(f"[SKIP] Nessun file APOLLO trovato per station_id={sid}")
@@ -128,8 +155,9 @@ def main():
         ).splitlines(keepends=True)
         apollo_header = parse_header(apollo_lines)
 
-        updates = {}
-        missing_in_apollo = []
+        updates: dict[str, str] = {}
+        missing_in_apollo: list[str] = []
+
         for k in FIELDS_TO_COPY:
             if k in apollo_header:
                 updates[k] = apollo_header[k]
@@ -143,7 +171,6 @@ def main():
             )
             continue
 
-        # backup
         bak = snow_fp.with_suffix(snow_fp.suffix + ".bak")
         if not bak.exists():
             shutil.copy2(snow_fp, bak)
@@ -154,7 +181,7 @@ def main():
         updated += 1
         print(f"[OK] {snow_fp.name} aggiornato da {apollo_fp.name} (station_id={sid})")
 
-    print(f"\nFatto. Aggiornati: {updated} | Skippati: {skipped}")
+    print(f"\n Fatto. Aggiornati: {updated} | Skippati: {skipped}")
 
 
 if __name__ == "__main__":
